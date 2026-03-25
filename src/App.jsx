@@ -8,6 +8,7 @@ import {
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import { AudioProvider } from "./context/AudioContext.jsx";
 import { ResolutionProvider } from "./context/ResolutionContext.jsx";
+
 import Home from "./pages/Home.jsx";
 import MestrePage from "./pages/MestrePage.jsx";
 import JogadorPage from "./pages/JogadorPage.jsx";
@@ -15,8 +16,10 @@ import SalaPage from "./pages/SalaPage.jsx";
 import CriarSalaPage from "./pages/CriarSalaPage.jsx";
 import PersonagensPage from "./pages/PersonagensPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
+import CriarPersonagemPage from "./pages/CriarPersonagemPage.jsx";
+import PersonagemDetalhePage from "./pages/PersonagemDetalhePage.jsx";
+import VisualizarPersonagensPage from "./pages/VisualizarPersonagens.jsx";
 
-// ✅ MOVER useAuth PARA DENTRO DE UM COMPONENTE QUE ESTÁ DENTRO DO AuthProvider
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuth();
 
@@ -35,6 +38,7 @@ function AppRoutes() {
     return (
         <Routes>
             <Route path="/login" element={<LoginPage />} />
+
             <Route
                 path="/"
                 element={
@@ -43,6 +47,7 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+
             <Route
                 path="/mestre"
                 element={
@@ -51,6 +56,7 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+
             <Route
                 path="/jogador"
                 element={
@@ -59,6 +65,7 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+
             <Route
                 path="/sala/:id"
                 element={
@@ -67,6 +74,7 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+
             <Route
                 path="/criar-sala"
                 element={
@@ -75,6 +83,7 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+
             <Route
                 path="/personagens"
                 element={
@@ -83,6 +92,44 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+
+            <Route
+                path="/visualizar-personagens"
+                element={
+                    <ProtectedRoute>
+                        <VisualizarPersonagensPage />
+                    </ProtectedRoute>
+                }
+            />
+
+            <Route
+                path="/criar-personagem"
+                element={
+                    <ProtectedRoute>
+                        <CriarPersonagemPage />
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* ✅ NOVO: edição */}
+            <Route
+                path="/editar-personagem/:id"
+                element={
+                    <ProtectedRoute>
+                        <CriarPersonagemPage />
+                    </ProtectedRoute>
+                }
+            />
+
+            <Route
+                path="/personagem/:id"
+                element={
+                    <ProtectedRoute>
+                        <PersonagemDetalhePage />
+                    </ProtectedRoute>
+                }
+            />
+
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );
@@ -99,11 +146,7 @@ function App() {
     if (showBlackLogo) {
         return (
             <div className="fixed inset-0 bg-black flex items-center justify-center z-50 flex-col gap-3">
-                <img
-                    src="/logowhite.svg"
-                    alt="minha logo"
-                    className="w-64 h-64 md:w-96 md:h-96 object-contain drop-shadow-2xl animate-pulse"
-                />
+                <img src="/logowhite.svg" className="w-64 h-64 animate-pulse" />
                 <p>Desenvolvido por Gabriel Amorim.</p>
             </div>
         );

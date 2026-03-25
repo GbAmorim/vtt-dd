@@ -13,15 +13,23 @@ const CriarSalaPage = () => {
 
     const handleCriarSala = async () => {
         if (!nome.trim()) {
-            setError("Nome da campanha é obrigatório.");
+            alert("Digite o nome da sala");
             return;
         }
-        setLoading(true);
-        const salaId = uuidv4(); // Gera UUID único para a sala
-        const res = await criarCampanha(nome, salaId, senha);
-        setLoading(false);
-        if (res.error) setError(res.error.message || "Erro ao criar sala.");
-        else navigate(`/sala/${salaId}`); // Redireciona para a sala
+
+        const sala_id = Math.random().toString(36).substring(2, 8);
+
+        const res = await criarCampanha({
+            nome,
+            sala_id,
+            senha,
+        });
+
+        if (res.error) {
+            alert("Erro ao criar sala");
+        } else {
+            navigate(`/sala/${sala_id}`);
+        }
     };
 
     return (

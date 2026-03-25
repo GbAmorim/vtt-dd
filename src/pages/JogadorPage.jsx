@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { supabase } from "../lib/supabase";
 
 const JogadorPage = () => {
     const { campanhas, addSalaVisitada, getSalasVisitadas } = useAuth();
@@ -23,28 +24,32 @@ const JogadorPage = () => {
 
     const handleEntrarSala = async () => {
         setError("");
+
         if (!codigoSala.trim()) {
             setError("Preencha o código da sala.");
             return;
         }
 
-        // Verifica se sala existe em campanhas
-        const salaExiste = campanhas.find((c) => c.sala_id === codigoSala);
-        if (!salaExiste) {
+        const { data: salaExiste, error } = await supabase
+            .from("campanhas")
+            .select("*")
+            .eq("sala_id", codigoSala)
+            .single();
+
+        if (error || !salaExiste) {
             setError("Sala não encontrada.");
             return;
         }
 
-        // Verifica senha se a sala for privada
         if (salaExiste.privada && salaExiste.senha_hash) {
-            const senhaCorreta = btoa(senhaSala) === salaExiste.senha_hash;
-            if (!senhaCorreta) {
+            if (btoa(senhaSala) !== salaExiste.senha_hash) {
                 setError("Senha incorreta.");
                 return;
             }
         }
 
         await addSalaVisitada(codigoSala, nomeSala || salaExiste.nome);
+
         navigate(`/sala/${codigoSala}`);
     };
 
@@ -95,7 +100,7 @@ const JogadorPage = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                 <Link
-                    to="/jogador"
+                    to="/personagens"
                     className="bg-blue-900/70 hover:bg-blue-800 text-silver font-bold w-70 h-25 rounded-2xl border-4 border-silver/50 shadow-2xl hover:scale-110 transition-all duration-500 text-2xl md:text-3xl flex items-center justify-center text-center cursor-pointer"
                 >
                     Meus Personagens

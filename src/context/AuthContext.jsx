@@ -9,14 +9,17 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState({ nickname: "", foto: "" });
     const [campanhas, setCampanhas] = useState([]);
+    const [personagens, setPersonagens] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // ================= FETCH =================
     const fetchProfile = async (userId) => {
         const { data } = await supabase
             .from("profiles")
             .select("*")
             .eq("id", userId)
             .single();
+
         setProfile(data || { nickname: "", foto: "" });
     };
 
@@ -25,197 +28,210 @@ export const AuthProvider = ({ children }) => {
             .from("campanhas")
             .select("*")
             .eq("user_id", userId);
+
         setCampanhas(data || []);
     };
 
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                fetchProfile(session.user.id);
-                fetchCampanhas(session.user.id);
-            }
-            setLoading(false);
-        });
+    const fetchPersonagens = async (userId) => {
+        const { data } = await supabase
+            .from("personagens")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false });
 
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, session) => {
+        setPersonagens(data || []);
+    };
+
+    // ================= AUTH =================
+    useEffect(() => {
+        const initAuth = async () => {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+
             setUser(session?.user ?? null);
+
             if (session?.user) {
                 await fetchProfile(session.user.id);
                 await fetchCampanhas(session.user.id);
+                await fetchPersonagens(session.user.id);
+            }
+
+            setLoading(false);
+        };
+
+        initAuth();
+
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (_, session) => {
+            setUser(session?.user ?? null);
+
+            if (session?.user) {
+                await fetchProfile(session.user.id);
+                await fetchCampanhas(session.user.id);
+                await fetchPersonagens(session.user.id);
             } else {
                 setProfile({ nickname: "", foto: "" });
                 setCampanhas([]);
+                setPersonagens([]);
             }
         });
 
         return () => subscription.unsubscribe();
     }, []);
 
-    const signUp = async (email, password, nickname) => {
-        const { data, error } = await supabase.auth.signUp({
+    // ================= AUTH ACTIONS =================
+    const signUp = (email, password, nickname) =>
+        supabase.auth.signUp({
             email,
             password,
             options: { data: { nickname } },
         });
-        return { data, error };
+
+    const signIn = (email, password) =>
+        supabase.auth.signInWithPassword({ email, password });
+
+    const signOut = () => supabase.auth.signOut();
+
+    // ================= PERSONAGENS =================
+    const criarPersonagem = async (characterData) => {
+        const { data, error } = await supabase
+            .from("personagens")
+            .insert({
+                user_id: user.id,
+                nome: characterData.name,
+                dados: characterData,
+            })
+            .select();
+
+        if (!error) {
+            setPersonagens((prev) => [data[0], ...prev]);
+        }
+
+        return { data: data?.[0], error };
     };
 
-    const signIn = async (email, password) => {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-        return { data, error };
-    };
-
-    const signOut = async () => supabase.auth.signOut();
-
-    const updateProfile = async (nickname, fotoBase64) => {
-        if (!user) return { error: "Usuário não logado" };
-        const { error } = await supabase
-            .from("profiles")
-            .update({ nickname, foto: fotoBase64 })
-            .eq("id", user.id);
-        if (!error) setProfile({ nickname, foto: fotoBase64 });
-        return { error };
-    };
-
-    const criarCampanha = async (nome, salaId, senha = "") => {
-        if (!user) return { error: "Faça login" };
-        const senhaHash = senha ? btoa(senha) : null;
+    // ================= CAMPANHAS =================
+    const criarCampanha = async (campanhaData) => {
         const { data, error } = await supabase
             .from("campanhas")
             .insert({
                 user_id: user.id,
-                nome,
-                sala_id: salaId,
-                senha_hash: senhaHash,
-                privada: !!senha,
+                nome: campanhaData.nome,
+                sala_id: campanhaData.sala_id,
+                senha_hash: campanhaData.senha
+                    ? btoa(campanhaData.senha)
+                    : null,
+                privada: !!campanhaData.senha,
             })
-            .select()
-            .single();
-        if (!error) setCampanhas([data, ...campanhas]);
+            .select();
+
+        if (!error && data) {
+            setCampanhas((prev) => [data[0], ...prev]);
+        }
+
+        return { data: data?.[0], error };
+    };
+
+    const updatePersonagem = async (id, dados) => {
+        const { error } = await supabase
+            .from("personagens")
+            .update({
+                nome: dados.name,
+                dados,
+            })
+            .eq("id", id);
+        if (!error) await fetchPersonagens(user.id);
+        return { error };
+    };
+
+    const updateCampanha = async (id, novoNome, novaSenha) => {
+        const updateData = {
+            nome: novoNome,
+            senha_hash: novaSenha ? btoa(novaSenha) : null,
+            privada: !!novaSenha,
+        };
+
+        const { data, error } = await supabase
+            .from("campanhas")
+            .update(updateData)
+            .eq("id", id)
+            .select();
+
+        if (!error && data) {
+            setCampanhas((prev) =>
+                prev.map((c) => (c.id === id ? data[0] : c)),
+            );
+        }
+
         return { data, error };
     };
 
-    // Na função updateCampanha, adicione console.log para debug:
-    const updateCampanha = async (id, nome, senha) => {
-        if (!user) return { error: "Faça login" };
-
-        const senhaHash = senha ? btoa(senha) : null;
-        const { data, error } = await supabase
-            .from("campanhas")
-            .update({ nome, senha_hash: senhaHash, ultimo_update: new Date() })
-            .eq("id", id)
-            .eq("user_id", user.id); // Adicione esta linha para garantir que é o dono
-
-        if (error) {
-            console.error("Erro ao atualizar:", error);
-            return { error };
-        }
-
-        // Atualiza o estado local
-        setCampanhas(
-            campanhas.map((c) =>
-                c.id === id ? { ...c, nome, senha_hash: senhaHash } : c,
-            ),
-        );
-
-        return { error: null };
-    };
-
-    // Na função deleteCampanha, adicione a mesma verificação:
     const deleteCampanha = async (id) => {
-        if (!user) return { error: "Faça login" };
-
-        // Busca o sala_id da campanha que será deletada
-        const campanhaADeletar = campanhas.find((c) => c.id === id);
-        if (!campanhaADeletar) return { error: "Campanha não encontrada" };
-
-        // Deleta a campanha
-        const { error: errorCampanha } = await supabase
+        const { error } = await supabase
             .from("campanhas")
             .delete()
-            .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("id", id);
 
-        if (errorCampanha) {
-            console.error("Erro ao deletar campanha:", errorCampanha);
-            return { error: errorCampanha };
+        if (!error) {
+            setCampanhas((prev) => prev.filter((c) => c.id !== id));
         }
 
-        // Remove a sala das salas_visitadas de TODOS os jogadores
+        return { error };
+    };
+
+    // ================= SALAS =================
+    const addSalaVisitada = async (sala_id, nome) => {
+        if (!user) return;
+
         await supabase
             .from("salas_visitadas")
             .delete()
-            .eq("sala_id", campanhaADeletar.sala_id);
-
-        // Atualiza estado local
-        setCampanhas(campanhas.filter((c) => c.id !== id));
-
-        return { error: null };
-    };
-
-    const addSalaVisitada = async (salaId, nomeSala) => {
-        if (!user) return { error: "Faça login" };
-
-        // Verifica se já existe
-        const { data: existing } = await supabase
-            .from("salas_visitadas")
-            .select("id")
             .eq("user_id", user.id)
-            .eq("sala_id", salaId);
+            .eq("sala_id", sala_id);
 
-        if (existing && existing.length > 0) {
-            // Atualiza a data se já existe
-            await supabase
-                .from("salas_visitadas")
-                .update({ data_visitada: new Date() })
-                .eq("id", existing[0].id);
-        } else {
-            // Insere novo registro
-            await supabase.from("salas_visitadas").insert({
-                user_id: user.id,
-                sala_id: salaId,
-                nome_sala: nomeSala,
-            });
-        }
+        await supabase.from("salas_visitadas").insert({
+            user_id: user.id,
+            sala_id,
+            nome_sala: nome,
+        });
     };
 
     const getSalasVisitadas = async () => {
-        if (!user) return { data: [], error: "Faça login" };
-
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from("salas_visitadas")
             .select("*")
             .eq("user_id", user.id)
             .order("data_visitada", { ascending: false })
             .limit(5);
 
-        return { data: data || [], error };
-    };
-
-    const value = {
-        user,
-        profile,
-        campanhas,
-        loading,
-        signUp,
-        signIn,
-        signOut,
-        updateProfile,
-        criarCampanha,
-        updateCampanha,
-        deleteCampanha,
-        fetchCampanhas,
-        addSalaVisitada,
-        getSalasVisitadas,
+        return { data: data || [] };
     };
 
     return (
-        <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+        <AuthContext.Provider
+            value={{
+                user,
+                profile,
+                campanhas,
+                personagens,
+                loading,
+                signUp,
+                signIn,
+                signOut,
+                fetchCampanhas,
+                fetchPersonagens,
+                criarPersonagem,
+                criarCampanha,
+                updateCampanha,
+                deleteCampanha,
+                addSalaVisitada,
+                updatePersonagem,
+                getSalasVisitadas,
+            }}
+        >
+            {children}
+        </AuthContext.Provider>
     );
 };
